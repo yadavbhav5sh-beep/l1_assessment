@@ -1,0 +1,107 @@
+resources:
+  jobs:
+    TPCH_Sales_Supply_Chain_Pipeline:
+      name: "TPCH Sales & Supply Chain Pipeline "
+      email_notifications:
+        on_failure:
+          - yadavbhav5sh@gmail.com
+      tasks:
+        - task_key: bronze_ingestion
+          notebook_task:
+            notebook_path: /Workspace/l2_assessment/l1_assessment/bronze/ingestion
+            base_parameters:
+              catalog: tpch_dev
+            source: WORKSPACE
+          max_retries: 2
+          min_retry_interval_millis: 30000
+          disable_auto_optimization: false
+          email_notifications:
+            on_failure:
+              - yadavbhav5sh@gmail.com
+        - task_key: silver_part_clean
+          depends_on:
+            - task_key: bronze_ingestion
+          spark_python_task:
+            python_file: /Workspace/l2_assessment/l1_assessment/silver/part_clean.py
+          max_retries: 1
+          min_retry_interval_millis: 30000
+          disable_auto_optimization: false
+          environment_key: Default
+        - task_key: silver_region_clean
+          depends_on:
+            - task_key: bronze_ingestion
+          spark_python_task:
+            python_file: /Workspace/l2_assessment/l1_assessment/silver/region_clean.py
+          max_retries: 1
+          min_retry_interval_millis: 30000
+          disable_auto_optimization: false
+          environment_key: Default
+        - task_key: silver_nation_clean
+          depends_on:
+            - task_key: silver_region_clean
+          spark_python_task:
+            python_file: /Workspace/l2_assessment/l1_assessment/silver/nation_clean.py
+          max_retries: 1
+          min_retry_interval_millis: 30000
+          disable_auto_optimization: false
+          environment_key: Default
+        - task_key: silver_customer_clean
+          depends_on:
+            - task_key: silver_nation_clean
+          spark_python_task:
+            python_file: /Workspace/l2_assessment/l1_assessment/silver/customer_clean.py
+          max_retries: 1
+          min_retry_interval_millis: 30000
+          disable_auto_optimization: false
+          environment_key: Default
+        - task_key: silver_order_clean
+          depends_on:
+            - task_key: silver_customer_clean
+          spark_python_task:
+            python_file: /Workspace/l2_assessment/l1_assessment/silver/orders_clean.py
+          environment_key: Default
+        - task_key: silver_supplier_clean
+          depends_on:
+            - task_key: silver_nation_clean
+          spark_python_task:
+            python_file: /Workspace/l2_assessment/l1_assessment/silver/supplier_clean.py
+          environment_key: Default
+        - task_key: silver_partSupp_clean
+          depends_on:
+            - task_key: silver_part_clean
+            - task_key: silver_supplier_clean
+          spark_python_task:
+            python_file: /Workspace/l2_assessment/l1_assessment/silver/partSupp.py
+          environment_key: Default
+        - task_key: silver_lineitem_clean
+          depends_on:
+            - task_key: silver_order_clean
+            - task_key: silver_part_clean
+            - task_key: silver_supplier_clean
+            - task_key: silver_partSupp_clean
+          spark_python_task:
+            python_file: /Workspace/l2_assessment/l1_assessment/silver/lineitem_clean.py
+          environment_key: Default
+        - task_key: gold_DimAndFact
+          depends_on:
+            - task_key: silver_lineitem_clean
+          notebook_task:
+            notebook_path: /Workspace/l2_assessment/l1_assessment/gold/Dim and fact
+            source: WORKSPACE
+        - task_key: dataQualityAndRconciliation
+          depends_on:
+            - task_key: gold_DimAndFact
+          notebook_task:
+            notebook_path: /Workspace/l2_assessment/l1_assessment/Data Quality and
+              Reconciliation/dataQualityAndReconciliationReport
+            source: WORKSPACE
+      queue:
+        enabled: true
+      parameters:
+        - name: catalog
+          default: tpch_dev
+      environments:
+        - environment_key: Default
+          spec:
+            environment_version: "6"
+      performance_target: PERFORMANCE_OPTIMIZED
